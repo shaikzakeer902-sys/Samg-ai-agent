@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Happy Birthday Tousif!</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Pacifico&family=Inter:wght@400;600;800&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 99%, #fecfef 100%);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        h1 {
+            font-family: 'Pacifico', cursive;
+        }
+
+        /* Specific styles for the requested class */
+        .birthday-photo {
+            width: 200px;
+            height: 200px;
+            object-fit: cover;
+            border-radius: 50%;
+            border: 6px solid white;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease;
+            margin: 0 auto;
+            display: block;
+        }
+
+        .birthday-photo:hover {
+            transform: scale(1.05) rotate(2deg);
+        }
+
+        .card {
+            backdrop-filter: blur(10px);
+            background: rgba(255, 255, 255, 0.8);
+        }
+
+        /* Confetti Animation */
+        .confetti {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: #f00;
+            animation: fall linear forwards;
+        }
+
+        @keyframes fall {
+            to {
+                transform: translateY(100vh) rotate(720deg);
+            }
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center p-4 relative">
+
+    <!-- Confetti Container -->
+    <div id="confetti-container" class="absolute inset-0 pointer-events-none overflow-hidden"></div>
+
+    <!-- Hidden Audio Element for Birthday Song -->
+    <audio id="birthday-song" preload="auto">
+        <source src="https://www.soundjay.com/misc/sounds/bell-ringing-05.wav" type="audio/wav">
+        <!-- Fallback: Replace with a real birthday song URL, e.g., a public domain Happy Birthday from archive.org or your own file -->
+        Your browser does not support the audio element.
+    </audio>
+
+    <div class="card max-w-md w-full rounded-3xl shadow-2xl p-8 text-center relative z-10 transform transition-all hover:shadow-3xl border border-white/50">
+        
+        <div class="absolute -top-6 left-1/2 transform -translate-x-1/2 w-full">
+            <div class="text-6xl animate-bounce filter drop-shadow-md">🎂</div>
+        </div>
+
+        <div class="mt-8 mb-6 relative group">
+            <!-- 
+                NOTE: I have included the exact tag you requested below.
+                I added an 'onerror' event to show a placeholder if the example link doesn't work.
+            -->
+            <img 
+                src="https://example.com/path-to-your-photo.jpg" 
+                alt="Photo of Tousif" 
+                class="birthday-photo" 
+                onerror="this.src='https://placehold.co/400x400/FF6B6B/FFFFFF?text=Tousif'; this.onerror=null;"
+            />
+            
+            <div class="absolute bottom-0 right-1/2 translate-x-12 translate-y-2 bg-yellow-400 text-yellow-900 text-xs font-bold px-2 py-1 rounded-full shadow-sm transform rotate-12">
+                Birthday Boy!
+            </div>
+        </div>
+
+        <h1 class="text-4xl md:text-5xl text-pink-600 mb-2">Happy Birthday<br><span class="text-gray-800 text-3xl md:text-4xl block mt-2">Tousif!</span></h1>
+        
+        <p class="text-gray-600 mt-4 mb-8 leading-relaxed">
+            Wishing you a day filled with happiness and a year filled with joy. Happy birthday! Enjoy every moment. Here's to a year full of blessings and happiness!
+        </p>
+
+        <div class="flex justify-center space-x-4">
+            <button onclick="playSongAndConfetti()" class="bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white font-bold py-3 px-8 rounded-full shadow-lg transform transition hover:-translate-y-1 active:translate-y-0">
+                🎉 Celebrate!
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Confetti Logic
+        const colors = ['#ff69b4', '#ffd700', '#00bfff', '#ff4500', '#32cd32'];
+        const container = document.getElementById('confetti-container');
+
+        function createPiece(x, y) {
+            const piece = document.createElement('div');
+            piece.classList.add('confetti');
+            piece.style.left = x + 'px';
+            piece.style.top = y + 'px';
+            piece.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+            piece.style.transform = `rotate(${Math.random() * 360}deg)`;
+            
+            const size = Math.random() * 10 + 5;
+            piece.style.width = size + 'px';
+            piece.style.height = size + 'px';
+            
+            const duration = Math.random() * 3 + 2;
+            piece.style.animationDuration = duration + 's';
+            
+            container.appendChild(piece);
+
+            setTimeout(() => {
+                piece.remove();
+            }, duration * 1000);
+        }
+
+        function burstConfetti() {
+            // Burst from center
+            const centerX = window.innerWidth / 2;
+            const centerY = window.innerHeight / 2;
+
+            for (let i = 0; i < 100; i++) {
+                const x = Math.random() * window.innerWidth;
+                const y = -20; // Start above screen
+                createPiece(x, y);
+            }
+        }
+
+        // New function to play song and burst confetti
+        function playSongAndConfetti() {
+            const audio = document.getElementById('birthday-song');
+            if (audio) {
+                audio.currentTime = 0; // Restart if already playing
+                audio.play().catch(e => console.log('Audio play failed:', e)); // Handle autoplay restrictions
+            }
+            burstConfetti();
+        }
+
+        // Initial gentle rain
+        setInterval(() => {
+            const x = Math.random() * window.innerWidth;
+            createPiece(x, -20);
+        }, 300);
+
+    </script>
+</body>
+</html>
