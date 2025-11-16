@@ -1,0 +1,49 @@
+from serpapi import GoogleSearch
+
+class ChatSearchAgent:
+    def __init__(self, serpapi_key):
+        self.key = serpapi_key
+
+    def decide_action(self, query):
+        q = query.lower()
+        if "search" in q or "google" in q or "find" in q:
+            return "google_search"
+        return "chat"
+
+    def google_search(self, query):
+        search = GoogleSearch({
+            "q": query.replace("search", "").replace("google", "").strip(),
+            "api_key": self.key
+        })
+        results = search.get_dict()
+
+        # Clean result output
+        if "organic_results" in results:
+            top = results["organic_results"][:3]
+            response = "🔍 **Top Google Results:**\n\n"
+            for item in top:
+                title = item.get("title")
+                link = item.get("link")
+                snippet = item.get("snippet")
+                response += f"• **{title}**\n  {snippet}\n  ({link})\n\n"
+            return response
+
+        return "No results found."
+
+    def chat(self, text):
+        return f"💬 You said: {text}"
+
+    def ask(self, query):
+        action = self.decide_action(query)
+
+        if action == "google_search":
+            return self.google_search(query)
+
+        return self.chat(query)
+
+
+# ---- RUN THE AGENT ----
+agent = ChatSearchAgent("YOUR_SERPAPI_KEY")
+
+print(agent.ask("Hello bro"))
+print(agent.ask("Search Google for Python AI projects"))
