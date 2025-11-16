@@ -1,0 +1,171 @@
+import re
+
+class CodingAgent:
+    def __init__(self):
+        self.name = "PowerCoder"
+    
+    # ---------------------------
+    # Decide the type of task
+    # ---------------------------
+    def decide_action(self, prompt):
+        prompt_l = prompt.lower()
+
+        if "fix" in prompt_l or "error" in prompt_l or "bug" in prompt_l:
+            return "debug"
+
+        if "optimize" in prompt_l or "improve" in prompt_l:
+            return "optimize"
+
+        if "explain" in prompt_l:
+            return "explain"
+
+        if "run" in prompt_l or "output" in prompt_l:
+            return "run_code"
+
+        if "generate" in prompt_l or "write code" in prompt_l or "create" in prompt_l:
+            return "generate_code"
+
+        return "chat"
+    
+    # ---------------------------
+    # Tool: Fake code executor
+    # ---------------------------
+    def fake_run(self, code):
+        try:
+            # Dangerous code blocked
+            if "import os" in code or "import sys" in code:
+                return "Execution blocked for safety."
+            
+            local_vars = {}
+            exec(code, {}, local_vars)
+            return "Execution successful: " + str(local_vars)
+        except Exception as e:
+            return f"Execution failed with error: {e}"
+
+    # ---------------------------
+    # Code Debugger
+    # ---------------------------
+    def debug_code(self, prompt):
+        code = self.extract_code(prompt)
+        if not code:
+            return "Please provide the code you want me to fix."
+
+        errors = []
+
+        if "print(" in code and not code.count("(") == code.count(")"):
+            errors.append("Mismatched parentheses in print statement.")
+
+        if "==" in code and "if" not in code:
+            errors.append("Comparison '==' used outside a condition.")
+
+        if " :" in code:
+            errors.append("Remove space before ':'.")
+
+        if errors:
+            return "Found issues:\n- " + "\n- ".join(errors)
+
+        return "No major issues detected. Code looks fine."
+
+    # ---------------------------
+    # Code Optimization
+    # ---------------------------
+    def optimize_code(self, prompt):
+        code = self.extract_code(prompt)
+        if not code:
+            return "Please paste the code for optimization."
+
+        optimized = code.replace("range(0,", "range(")
+        optimized = re.sub(r"\s+", " ", optimized)
+
+        return f"Optimized Code:\n{optimized}"
+
+    # ---------------------------
+    # Code Explanation
+    # ---------------------------
+    def explain_code(self, prompt):
+        code = self.extract_code(prompt)
+        if not code:
+            return "Please paste the code to explain."
+
+        return (
+            "Explanation:\n"
+            "- This code defines a function.\n"
+            "- It processes an input.\n"
+            "- Returns value.\n"
+            "If you want a line-by-line explanation, paste full code."
+        )
+
+    # ---------------------------
+    # Code Generator
+    # ---------------------------
+    def generate_python(self, prompt):
+        if "calculator" in prompt.lower():
+            return """\n# Simple Python Calculator
+a = int(input("Enter first number: "))
+b = int(input("Enter second number: "))
+
+print("Sum =", a + b)
+print("Difference =", a - b)
+print("Product =", a * b)
+print("Quotient =", a / b)
+"""
+
+        if "game" in prompt.lower():
+            return """\n# Number Guessing Game
+import random
+
+secret = random.randint(1, 20)
+
+while True:
+    guess = int(input("Guess number 1-20: "))
+    if guess == secret:
+        print("Correct!")
+        break
+    elif guess < secret:
+        print("Too low.")
+    else:
+        print("Too high.")
+"""
+
+        return "# Generated Python code will go here based on your request."
+
+    # ---------------------------
+    # Helper: Extract code block
+    # ---------------------------
+    def extract_code(self, text):
+        match = re.search(r"```python(.+?)```", text, re.S)
+        return match.group(1).strip() if match else None
+
+    # ---------------------------
+    # MAIN AGENT
+    # ---------------------------
+    def ask(self, prompt):
+        action = self.decide_action(prompt)
+
+        if action == "debug":
+            return self.debug_code(prompt)
+
+        if action == "optimize":
+            return self.optimize_code(prompt)
+
+        if action == "explain":
+            return self.explain_code(prompt)
+
+        if action == "run_code":
+            code = self.extract_code(prompt)
+            if code:
+                return self.fake_run(code)
+            return "Please paste code inside ```python``` blocks."
+
+        if action == "generate_code":
+            return self.generate_python(prompt)
+
+        return "Alright! How can I help you with Python?"
+
+
+# ---- RUN THE AGENT ----
+agent = CodingAgent()
+
+print(agent.ask("Generate a Python calculator"))
+print(agent.ask("Fix this code: ```python print('Hi' ```"))
+print(agent.ask("Run this code: ```python a=5\nb=2\nc=a*b```"))
