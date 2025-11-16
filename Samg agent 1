@@ -1,0 +1,62 @@
+import time
+
+class TaskAgent:
+    def __init__(self):
+        self.memory = {}
+
+    def decide_action(self, prompt):
+        prompt = prompt.lower()
+
+        if "calculate" in prompt or "+" in prompt or "-" in prompt or "*" in prompt or "/" in prompt:
+            return "math"
+
+        if "remember" in prompt or "note" in prompt:
+            return "store_memory"
+
+        if "recall" in prompt or "what did i" in prompt:
+            return "get_memory"
+
+        if "summarize" in prompt:
+            return "summarize"
+
+        return "chat"
+
+    def do_action(self, action, prompt):
+        if action == "math":
+            try:
+                result = eval(prompt.replace("calculate", ""))
+                return f"The answer is: {result}"
+            except:
+                return "Sorry, I couldn't calculate that."
+
+        if action == "store_memory":
+            key = f"note_{len(self.memory)+1}"
+            self.memory[key] = prompt
+            return f"Okay, I saved your note: {prompt}"
+
+        if action == "get_memory":
+            if not self.memory:
+                return "There is nothing in my memory yet."
+            return "Here’s what you asked me to remember:\n" + "\n".join(self.memory.values())
+
+        if action == "summarize":
+            words = prompt.split()
+            summary = " ".join(words[:10]) + "..."
+            return f"Summary: {summary}"
+
+        return "I'm here! How can I help you?"
+
+    def ask(self, prompt):
+        action = self.decide_action(prompt)
+        response = self.do_action(action, prompt)
+        return response
+
+
+# ---- RUNNING THE AGENT ----
+agent = TaskAgent()
+
+print(agent.ask("Remember this: My exam is on March 15"))
+print(agent.ask("Recall my notes"))
+print(agent.ask("Calculate 22 * 4"))
+print(agent.ask("Summarize: Artificial intelligence is transforming the world."))
+print(agent.ask("Hello agent"))
