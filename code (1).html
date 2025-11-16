@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Samg AI Chat</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* Custom scrollbar for chat history (Dark Theme) */
+        #chat-history::-webkit-scrollbar {
+            width: 8px;
+        }
+        #chat-history::-webkit-scrollbar-thumb {
+            background-color: #4b5563; /* Gray-600 */
+            border-radius: 4px;
+        }
+        #chat-history::-webkit-scrollbar-track {
+            background-color: #1f2937; /* Gray-800 */
+        }
+        /* Style for loading dots */
+        .loading-dots > div {
+            width: 8px;
+            height: 8px;
+            margin: 0 2px;
+            background-color: #6366f1; /* Indigo-500 */
+            border-radius: 100%;
+            display: inline-block;
+            animation: dot-bounce 0.8s infinite ease-in-out both;
+        }
+        .loading-dots > div:nth-child(1) { animation-delay: -0.32s; }
+        .loading-dots > div:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes dot-bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1.0); }
+        }
+    </style>
+</head>
+<!-- Black Theme Body -->
+<body class="bg-gray-900 flex flex-col h-screen antialiased text-gray-100 font-sans">
+
+    <!-- Main Chat Container -->
+    <div id="app" class="flex flex-col h-full w-full max-w-4xl mx-auto shadow-2xl bg-gray-800 rounded-lg overflow-hidden">
+
+        <!-- Header - Samg AI Branding and Real-Time Clock -->
+        <header class="p-4 bg-gray-900 text-white shadow-lg flex items-center justify-between border-b border-indigo-700">
+            <div>
+                <h1 class="text-xl font-bold">Samg AI</h1>
+                <p class="text-xs opacity-50 mt-0.5">Powered by <strong class="text-indigo-400">Mock AI</strong> and <a href="#" class="text-gray-900 bg-gray-100 px-1 rounded-sm hover:underline font-semibold transition duration-150">Shaik Zakeer</a></p>
+            </div>
+            <div class="flex items-center space-x-4">
+                 <!-- Summarize Button -->
+                <button id="summarize-btn" class="p-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg transition duration-150 text-white" title="✨ Summarize Chat">
+                    <i data-lucide="file-text" class="w-5 h-5"></i>
+                </button>
+                <!-- Clear Chat Button (New) -->
+                <button id="clear-btn" class="p-2 bg-red-600 hover:bg-red-700 rounded-lg transition duration-150 text-white" title="🗑️ Clear Chat">
+                    <i data-lucide="trash" class="w-5 h-5"></i>
+                </button>
+                <div class="h-6 w-px bg-gray-700"></div>
+                <div id="real-time-clock" class="text-sm font-semibold text-indigo-400">Loading Clock...</div>
+                <div id="status-display" class="text-sm font-medium opacity-75">Ready</div>
+            </div>
+        </header>
+
+        <!-- Chat History Area -->
+        <main id="chat-history" class="flex-grow p-4 overflow-y-auto space-y-4"></main>
+
+        <!-- Smart Reply Container -->
+        <div id="smart-replies" class="px-4 pb-2 flex space-x-2 overflow-x-auto bg-gray-900 hidden">
+            <!-- Smart reply chips will be injected here -->
+        </div>
+
+        <!-- Message Input Area -->
+        <footer class="p-4 border-t border-gray-700 bg-gray-900">
+            <div class="flex items-center space-x-2">
+                <input type="text" id="user-input" placeholder="Ask the assistant a question..." class="flex-grow p-3 border border-gray-600 rounded-xl focus:ring-indigo-500 focus:border-indigo-500 transition duration-150 shadow-sm bg-gray-700 text-white" autocomplete="off">
+                <button id="send-button" class="p-3 bg-indigo-600 text-white rounded-xl shadow-md hover:bg-indigo-700 transition duration-150 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed">
+                    <i data-lucide="send" class="w-5 h-5"></i>
+                </button>
+            </div>
+        </footer>
+
+        <!-- Custom Modal for Errors/Messages/Summaries (Dark Theme) -->
+        <div id="info-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-90 z-50 flex items-center justify-center p-4">
+            <div class="bg-gray-800 p-6 rounded-xl shadow-2xl max-w-md w-full border border-indigo-500/50">
+                <h3 id="modal-title" class="text-xl font-bold text-indigo-400 mb-4 flex items-center">
+                    <span id="modal-title-text">Message</span>
+                </h3>
+                <div id="modal-content" class="text-gray-200 mb-6 max-h-[60vh] overflow-y-auto whitespace-pre-wrap"></div>
+                <button id="close-modal" class="w-full bg-gray-700 text-white p-3 rounded-lg hover:bg-gray-600 transition duration-150 font-semibold">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // UI Elements
+        const chatHistory = document.getElementById('chat-history');
+        const userInput = document.getElementById('user-input');
+        const sendButton = document.getElementById('send-button');
+        const statusDisplay = document.getElementById('status-display');
+        const clockDisplay = document.getElementById('real-time-clock');
+        const infoModal = document.getElementById('info-modal');
+        const modalTitleText = document.getElementById('modal-title-text');
+        const modalContent = document.getElementById('modal-content');
+        const closeModalButton = document.getElementById('close-modal');
+        const summarizeBtn = document.getElementById('summarize-btn');
+        const clearBtn = document.getElementById('clear-btn');
+        const smartRepliesContainer = document.getElementById('smart-replies');
+
+        // Global State
+        let chatHistoryContext = []; // Stores conversation context
+        const STORAGE_KEY = 'samg-chat-history';
+
+        // --- Real-Time Clock Function ---
+        function updateClock() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            clockDisplay.textContent = `Live: ${timeString}`;
+        }
+        setInterval(updateClock, 1000);
+
+        // --- Utility Functions ---
+        function showModal(title, content, isError = false) {
+            modalTitleText.textContent = title;
+            modalContent.innerHTML = content;
+            const titleElement = document.getElementById('modal-title');
+            titleElement.className = isError ? "text-xl font-bold text-red-500 mb-4 flex items-center" : "text-xl font-bold text-indigo-400 mb-4 flex items-center";
+            infoModal.classList.remove('hidden');
+        }
+
+        closeModalButton.addEventListener('click', () => {
+            infoModal.classList.add('hidden');
+        });
+
+        function renderMessage(message) {
+            const isUser = message.sender === 'user';
+            const alignment = isUser ? 'self-end' : 'self-start';
+            const bgColor = isUser ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-100';
+            const bubble = document.createElement('div');
+            bubble.className = `flex max-w-xs md:max-w-md ${alignment}`;
+            const content = document.createElement('div');
+            content.className = `p-3 rounded-xl shadow-lg ${bgColor} whitespace-pre-wrap`;
+            const timestamp = message.timestamp ? new Date(message.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '...';
+            content.innerHTML = `<p class="mb-1">${message.text}</p><span class="text-xs opacity-50 block text-right">${timestamp}</span>`;
+            bubble.appendChild(content);
+            chatHistory.appendChild(bubble);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+
+        function renderLoadingIndicator() {
+            const loadingBubble = document.createElement('div');
+            loadingBubble.id = 'loading-indicator';
+            loadingBubble.className = 'flex self-start';
+            loadingBubble.innerHTML = `<div class="p-3 bg-gray-700 rounded-xl shadow-md"><div class="loading-dots"><div></div><div></div><div></div></div></div>`;
+            chatHistory.appendChild(loadingBubble);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+            return loadingBubble;
+        }
+
+        function removeLoadingIndicator() {
+            const indicator = document.getElementById('loading-indicator');
+            if (indicator) indicator.remove();
+        }
+
+        // --- Mock AI Response (Replace with real Gemini API) ---
+        async function getGeminiResponse(context, customSystemPrompt = null, jsonMode = false) {
+            // Simulate API delay
+            await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
+            
+            if (jsonMode) {
+                // For smart replies: Return mock JSON
+                return '["Yes, please", "Tell me more", "No thanks"]';
+            }
+            
+            // Mock responses based on user input
+            const lastUserMessage = context.filter(m => m.role === 'user').pop()?.parts?.[0]?.text || '';
+            const responses = [
+                "That's interesting! Tell me more.",
+                "I understand. How can I help?",
+                "Thanks for sharing. What else?",
+                `You said: "${lastUserMessage}". Got it!`
+            ];
+            return responses[Math.floor(Math.random() * responses.length)];
+        }
+
+        // --- Smart Replies ---
+        async function generateSmartReplies() {
+            if (chatHistoryContext.length < 2) return;
+            smartRepliesContainer.innerHTML = '';
+            smartRepliesContainer.classList.add('hidden');
+
+            const replyPrompt = { role: 'user', parts: [{ text: "Generate 3 short, concise, likely user responses to the last message. Output ONLY a JSON array of strings." }] };
+            try {
+                const replyContext = [...chatHistoryContext, replyPrompt];
+                const jsonResponse = await getGeminiResponse(replyContext, "You are a helpful assistant that suggests quick replies.", true);
+                const replies = JSON.parse(jsonResponse);
+                if (Array.isArray(replies) && replies.length > 0) {
+                    replies.slice(0, 3).forEach(replyText => {
+                        const chip = document.createElement('button');
+                        chip.className = "whitespace-nowrap px-4 py-2 bg-indigo-900/50 hover:bg-indigo-800 border border-indigo-500/30 text-indigo-300 rounded-full text-sm transition duration-200 ease-in-out flex items-center";
+                        chip.innerHTML = `<span class="mr-1">✨</span> ${replyText}`;
+                        chip.onclick = () => {
+                            userInput.value = replyText;
+                            handleSend();
+                            smartRepliesContainer.classList.add('hidden');
+                        };
+                        smartRepliesContainer.appendChild(chip);
+                    });
+                    smartRepliesContainer.classList.remove('hidden');
+                    chatHistory.scrollTop = chatHistory.scrollHeight;
+                }
+            } catch (e) {
+                console.warn("Smart reply generation failed:", e);
+            }
+        }
+
+        // --- Summarization ---
+        summarizeBtn.addEventListener('click', async () => {
+            if (chatHistoryContext.length === 0) {
+                showModal("Summary", "No chat history to summarize yet.");
+                return;
+            }
+            const originalText = summarizeBtn.innerHTML;
+            summarizeBtn.innerHTML = `<div class="loading-dots scale-50"><div></div><div></div><div></div></div>`;
+            summarizeBtn.disabled = true;
+
+            try {
+                const summaryPrompt = { role: 'user', parts: [{ text: "Summarize our conversation so far in 3 concise bullet points." }] };
+                const summary = await getGeminiResponse([...chatHistoryContext, summaryPrompt], "You are an expert summarizer. Output ONLY standard markdown bullet points.");
+                const formattedSummary = summary.replace(/•|\*/g, '✨').replace(/\n/g, '<br class="mb-2">');
+                showModal("✨ Chat Summary", `<div class="leading-relaxed">${formattedSummary}</div>`);
+            } catch (error) {
+                showModal("Error", "Failed to generate summary. Please try again.", true);
+            } finally {
+                summarizeBtn.innerHTML = originalText;
+                summarizeBtn.disabled = false;
+            }
+        });
+
+        // --- Clear Chat ---
+        clearBtn.addEventListener('click', () => {
+            if (confirm("Clear all chat history? This cannot be undone.")) {
+                localStorage.removeItem(STORAGE_KEY);
+                chatHistory.innerHTML = '';
+                chatHistoryContext = [];
+                smartRepliesContainer.classList.add('hidden');
+                showModal("Cleared", "Chat history has been cleared.");
+            }
+        });
+
+        // --- Load/Save Messages ---
+        function loadMessages() {
+            const stored = localStorage.getItem(STORAGE_KEY);
+            if (stored) {
+                const messages = JSON.parse(stored);
+                messages.forEach(msg => renderMessage(msg));
+                chatHistoryContext = messages.map(msg => ({ role: msg.sender === 'user' ? 'user' : 'model', parts: [{ text: msg.text }] }));
+            }
+        }
+
+        function saveMessage(text, sender) {
+            const message = { text, sender, timestamp: Date.now() };
+            const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+            stored.push(message);
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+            return message;
+        }
+
+        // --- Main Logic ---
+        async function handleSend() {
+            const userPrompt = userInput.value.trim();
+            if (!userPrompt) return;
+
+            userInput.value = '';
+            sendButton.disabled = true;
+            userInput.disabled = true;
+            smartRepliesContainer.classList.add('hidden');
+
+            const userMsg = saveMessage(userPrompt, 'user');
+            renderMessage(userMsg);
+            chatHistoryContext.push({ role: 'user', parts: [{ text: userPrompt }] });
+            renderLoadingIndicator();
+
+            try {
+                const aiResponse = await getGeminiResponse(chatHistoryContext);
+                if (!aiResponse) throw new Error("No response from AI");
+                const aiMsg = saveMessage(aiResponse, 'ai');
+                renderMessage(aiMsg);
+                chatHistoryContext.push({ role: 'model', parts: [{ text: aiResponse }] });
+                generateSmartReplies();
+            } catch (error) {
+                console.error("Chat Error:", error);
+                const errorMsg = saveMessage("Sorry, I encountered an error. Please try again.", 'ai');
+                renderMessage(errorMsg);
+            } finally {
+                removeLoadingIndicator();
+                sendButton.disabled = false;
+                userInput.disabled = false;
+                userInput.focus();
+            }
+        }
+
+        // Event Listeners
+        sendButton.addEventListener('click', handleSend);
+        userInput.addEventListener('keypress', (e) => { if (e.key === 'Enter' && !sendButton.disabled) handleSend(); });
+
+        // Initialize
+        window.onload = () => {
+            lucide.createIcons();
+            updateClock();
+            loadMessages();
+            statusDisplay.textContent = 'Ready';
+        };
+    </script>
+</body>
+</html>
