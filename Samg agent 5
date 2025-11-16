@@ -1,0 +1,233 @@
+# app.py
+import os
+import json
+from flask import Flask, request, jsonify, render_template_string
+from dotenv import load_dotenv
+
+# optional import for SerpAPI; if not installed or no key, app still works (simulated search)
+try:
+    from serpapi import GoogleSearch
+    serpapi_available = True
+except Exception:
+    serpapi_available = False
+
+load_dotenv()
+SERPAPI_KEY = os.getenv("SERPAPI_KEY", "").strip()
+
+app = Flask(__name__)
+
+# --- Simple agent logic (can be extended) ---
+def decide_action(text):
+    t = text.lower()
+    if "search" in t or "google" in t or "find" in t:
+        return "search"
+    if "explain" in t or "explanation" in t:
+        return "explain"
+    if "run code" in t or "execute" in t:
+        return "run_code"
+    return "chat"
+
+def simple_chat_response(text):
+    # replace with LLM call later if you integrate an LLM
+    return f"I hear you: \"{text}\" — tell me more or press Search to look online."
+
+def explain_code_snippet(code):
+    # Very basic explanatory stub — you can replace with an LLM call
+    lines = code.strip().splitlines()
+    explanation = []
+    for i, line in enumerate(lines, start=1):
+        snippet = line.strip()
+        if not snippet:
+            explanation.append(f"Line {i}: (blank)")
+        elif snippet.startswith("def "):
+            explanation.append(f"Line {i}: defines a function: {snippet}")
+        elif snippet.startswith("import "):
+            explanation.append(f"Line {i}: imports a module: {snippet}")
+        else:
+            explanation.append(f"Line {i}: {snippet}")
+    return "\n".join(explanation)
+
+def fake_run_code(code):
+    # Safety: do not actually run untrusted code. Provide a simulated run result.
+    # If you want real execution, add sandboxing (NOT recommended without safeguards).
+    return {"status": "simulated", "stdout": "Simulated run: no side effects allowed in demo."}
+
+def serpapi_search(query, num_results=3):
+    if not SERPAPI_KEY or not serpapi_available:
+        # fallback simulated results
+        return [
+            {"title": "Simulated result 1", "snippet": f"Simulated snippet for: {query}", "link": "https://example.com/1"},
+            {"title": "Simulated result 2", "snippet": "Simulated snippet 2", "link": "https://example.com/2"},
+            {"title": "Simulated result 3", "snippet": "Simulated snippet 3", "link": "https://example.com/3"},
+        ]
+
+    params = {
+        "q": query,
+        "api_key": SERPAPI_KEY,
+        "num": num_results,
+        "engine": "google",
+    }
+    search = GoogleSearch(params)
+    results = search.get_dict()
+    organic = results.get("organic_results", [])
+    out = []
+    for item in organic[:num_results]:
+        out.append({
+            "title": item.get("title"),
+            "snippet": item.get("snippet") or item.get("rich_snippet", {}).get("top", {}).get("detected_extensions", ""),
+            "link": item.get("link")
+        })
+    if not out:
+        # fallback if API returned nothing
+        out = [
+            {"title": "No clear results", "snippet": "No organic results returned.", "link": ""}
+        ]
+    return out
+
+# --- Flask routes ---
+INDEX_HTML = """
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>PowerCoder UI - Python Agent</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    body { font-family: Inter, Roboto, Arial; max-width:900px; margin:20px auto; padding:10px; color:#111; }
+    header { display:flex; justify-content:space-between; align-items:center; }
+    textarea { width:100%; height:140px; padding:8px; font-family: monospace; }
+    input[type=text] { width:100%; padding:8px; }
+    button { padding:10px 14px; margin:6px 6px 6px 0; cursor:pointer; }
+    .results { margin-top:12px; border-top:1px solid #eee; padding-top:12px; }
+    .result { margin-bottom:10px; }
+    .snippet { color:#444; font-size:0.95em; }
+    .meta { font-size:0.85em; color:#666; }
+    .notice { background:#fff4e5; padding:10px; border-left:4px solid #ffb74d; margin-bottom:10px;}
+  </style>
+</head>
+<body>
+  <header>
+    <h2>PowerCoder UI — Python Agent</h2>
+    <div>Demo • Flask • SerpAPI</div>
+  </header>
+
+  {% if not serpapi_ok %}
+  <div class="notice">
+    SerpAPI key not found or serpapi package missing. Search will be simulated. To enable real Google search: set <code>SERPAPI_KEY</code> in .env and install <code>serpapi</code>.
+  </div>
+  {% endif %}
+
+  <label for="prompt">Enter prompt / question / code:</label>
+  <textarea id="prompt" placeholder="E.g. Search Python decorators examples OR Explain: ```python ... ``` OR Run code: ```python ... ```"></textarea>
+
+  <div style="margin-top:8px;">
+    <button id="btnChat">Chat</button>
+    <button id="btnSearch">Search Google</button>
+    <button id="btnExplain">Explain Code</button>
+    <button id="btnRun">Simulate Run</button>
+    <button id="btnClear">Clear</button>
+  </div>
+
+  <div class="results" id="results"></div>
+
+<script>
+async function callServer(action, prompt){
+  const res = await fetch('/api/ask', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({action: action, prompt: prompt})
+  });
+  return res.json();
+}
+
+document.getElementById('btnChat').addEventListener('click', async () => {
+  const p = document.getElementById('prompt').value;
+  const r = await callServer('chat', p);
+  document.getElementById('results').innerHTML = `<pre>${escapeHtml(r.reply)}</pre>`;
+});
+
+document.getElementById('btnSearch').addEventListener('click', async () => {
+  const p = document.getElementById('prompt').value;
+  const r = await callServer('search', p);
+  let html = "<h3>Top results</h3>";
+  r.results.forEach(item => {
+    html += `<div class="result"><div class="meta"><a href="${escapeHtml(item.link)}" target="_blank">${escapeHtml(item.title)}</a></div><div class="snippet">${escapeHtml(item.snippet)}</div></div>`;
+  });
+  document.getElementById('results').innerHTML = html;
+});
+
+document.getElementById('btnExplain').addEventListener('click', async () => {
+  const p = document.getElementById('prompt').value;
+  const r = await callServer('explain', p);
+  document.getElementById('results').innerHTML = `<pre>${escapeHtml(r.reply)}</pre>`;
+});
+
+document.getElementById('btnRun').addEventListener('click', async () => {
+  const p = document.getElementById('prompt').value;
+  const r = await callServer('run', p);
+  document.getElementById('results').innerHTML = `<pre>${escapeHtml(JSON.stringify(r, null, 2))}</pre>`;
+});
+
+document.getElementById('btnClear').addEventListener('click', () => {
+  document.getElementById('prompt').value = '';
+  document.getElementById('results').innerHTML = '';
+});
+
+function escapeHtml(s){
+  if(!s) return "";
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+</script>
+</body>
+</html>
+"""
+
+@app.route("/")
+def index():
+    serpapi_ok = bool(SERPAPI_KEY and serpapi_available)
+    return render_template_string(INDEX_HTML, serpapi_ok=serpapi_ok)
+
+@app.route("/api/ask", methods=["POST"])
+def api_ask():
+    data = request.get_json() or {}
+    action = data.get("action", "chat")
+    prompt = data.get("prompt", "").strip()
+
+    if action == "search":
+        # allow user to input free text; if prompt contains word "search" remove it:
+        query = prompt
+        if query.lower().startswith("search "):
+            query = query[7:]
+        results = serpapi_search(query)
+        return jsonify({"ok": True, "results": results})
+
+    if action == "explain":
+        # if code block present (```python ... ```), extract; otherwise treat whole prompt as code
+        code = extract_code_block(prompt) or prompt
+        explanation = explain_code_snippet(code)
+        return jsonify({"ok": True, "reply": explanation})
+
+    if action == "run":
+        code = extract_code_block(prompt) or prompt
+        run_result = fake_run_code(code)
+        return jsonify({"ok": True, "result": run_result})
+
+    # default: chat
+    reply = simple_chat_response(prompt)
+    return jsonify({"ok": True, "reply": reply})
+
+def extract_code_block(text):
+    # naive extraction of ```python ... ``` or ``` ... ```
+    import re
+    m = re.search(r"```(?:python)?\\n([\\s\\S]+?)```", text, re.I)
+    if m:
+        return m.group(1).strip()
+    # also try single-line code markers
+    m2 = re.search(r"`([^`]+)`", text)
+    if m2:
+        return m2.group(1).strip()
+    return None
+
+if __name__ == "__main__":
+    # dev server
+    app.run(host="0.0.0.0", port=5000, debug=True)
